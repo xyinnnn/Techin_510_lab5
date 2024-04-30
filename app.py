@@ -1,44 +1,60 @@
+import os
 import streamlit as st
-import requests
-from requests.auth import HTTPBasicAuth
-import json
+import google.generativeai as genai
+from dotenv import load_dotenv
 
-# Set your Gemini API key and API secret
-API_KEY = 'your_gemini_api_key'
+# Load environment variables
+load_dotenv()
 
+# Configure the API with the environment variable
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+model = genai.GenerativeModel('gemini-pro')
 
-def get_gemini_price():
-    """Fetch the current price of Bitcoin from Gemini."""
-    url = "https://api.gemini.com/v1/pubticker/btcusd"
-    response = requests.get(url, auth=HTTPBasicAuth(API_KEY))
-    if response.status_code == 200:
-        data = response.json()
-        return data['last']
-    else:
-        return "API Error"
+# Define the prompt template for the travel plans
+prompt_template = """
+You are an expert at planning overseas trips.
+
+Please take the user's request and plan a comprehensive trip for them.
+
+Please include the following details:
+- The destination
+- The duration of the trip
+- The activities that will be done
+- The accommodation
+
+The user's request is:
+{prompt}
+"""
+
+# Function to generate content based on a user's prompt using the configured AI model
+def generate_content(user_prompt):
+    complete_prompt = prompt_template.format(prompt=user_prompt)
+    response = model.generate_content(complete_prompt)
+    if len(response.candidates[0].content.parts) > 0:
+        return response.candidates[0].content.parts[0].text
+    else: 
+        return response.text
 
 # Streamlit UI setup
-st.title('Resume and Crypto Market Coach')
-st.write("This app helps tailor your resume based on job descriptions and keeps you updated with the latest Bitcoin price from Gemini.")
+st.title("🌏 Travel Planner")
+st.write("Enter your travel preferences and receive a customized travel plan!")
 
-# Displaying Bitcoin price
-bitcoin_price = get_gemini_price()
-st.header(f"Current Bitcoin Price: ${bitcoin_price}")
+prompt = st.text_area("Enter where you want to go and any specific preferences you have:", height=150)
+if st.button("Generate Travel Plan"):
 
-# Text areas for job description and resume
-job_description = st.text_area("Enter the job description here:", height=150)
-user_resume = st.text_area("Paste your resume here:", height=150)
+    reply = generate_content(prompt)
+    try:
+        reply = generate_content(prompt)
+        st.write(reply)
+        if isinstance(reply, str) and (reply.startswith("Error") or reply.startswith("Invalid")):
+            st.error(reply)
+        else:
+            st.success("Here's your travel plan:")
+            st.write(reply)
+    except Exception as e:
+        st.error(f"Failed to generate travel plan: {str(e)}")
 
-if st.button('Analyze Resume'):
-    if job_description and user_resume:
-        # Assuming you implement a function that analyzes the resume
-        # results = analyze_resume(job_description, user_resume)
-        # For demo, let's just echo inputs
-        st.subheader("Analysis Results:")
-        st.write("### Job Description:")
-        st.write(job_description)
-        st.write("### Your Resume:")
-        st.write(user_resume)
-        st.write("Implement actual resume analysis logic here.")
-    else:
-        st.error("Please fill in both fields to perform the analysis.")
+
+
+
+
